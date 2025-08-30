@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm install --only=production
 
 # Copy source code
 COPY . .
@@ -21,8 +21,6 @@ USER nodejs
 
 EXPOSE 3002
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node healthcheck.js
+# Health check removed - healthcheck.js not found
 
 CMD ["node", "server.js"]

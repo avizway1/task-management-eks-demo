@@ -27,7 +27,7 @@ function Dashboard() {
   const loadStats = async () => {
     try {
       const response = await taskService.getTasks();
-      const tasks = response.data;
+      const tasks = response.data.tasks || [];
       
       setStats({
         totalTasks: tasks.length,
@@ -60,6 +60,22 @@ function Dashboard() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Task Management Dashboard
           </Typography>
+          <Button
+            color="inherit"
+            startIcon={<Task />}
+            onClick={() => navigate('/tasks')}
+            sx={{ mr: 2 }}
+          >
+            Tasks
+          </Button>
+          <Button
+            color="inherit"
+            startIcon={<Notifications />}
+            onClick={() => navigate('/notifications')}
+            sx={{ mr: 2 }}
+          >
+            Notifications
+          </Button>
           <div>
             <IconButton
               size="large"
@@ -165,6 +181,7 @@ function Dashboard() {
           <Button
             variant="outlined"
             startIcon={<Notifications />}
+            onClick={() => navigate('/notifications')}
             size="large"
           >
             Notifications

@@ -5,6 +5,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import TaskList from './components/TaskList';
+import Notifications from './components/Notifications';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 const theme = createTheme({
@@ -39,6 +40,11 @@ function App() {
             <Route path="/tasks" element={
               <ProtectedRoute>
                 <TaskList />
+              </ProtectedRoute>
+            } />
+            <Route path="/notifications" element={
+              <ProtectedRoute>
+                <Notifications />
               </ProtectedRoute>
             } />
             <Route path="/" element={<Navigate to="/dashboard" />} />

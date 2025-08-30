@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
 // Create axios instance
 const api = axios.create({
@@ -56,9 +56,16 @@ export const taskService = {
 
 // Notification service
 export const notificationService = {
-  getNotifications: () => api.get('/api/notifications'),
-  markAsRead: (id) => api.put(`/api/notifications/${id}/read`),
-  sendNotification: (notificationData) => api.post('/api/notifications', notificationData),
+  getHistory: (userId, page = 1, limit = 10) => 
+    api.get(`/api/notifications/history/${userId}?page=${page}&limit=${limit}`),
+  getStatus: (notificationId) => 
+    api.get(`/api/notifications/status/${notificationId}`),
+  sendEmail: (emailData) => 
+    api.post('/api/notifications/email', emailData),
+  sendTaskReminder: (reminderData) => 
+    api.post('/api/notifications/task-reminder', reminderData),
+  testEmail: (email) => 
+    api.post('/api/notifications/test-email', { to: email }),
 };
 
 export default api;

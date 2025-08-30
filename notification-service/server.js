@@ -12,12 +12,14 @@ const PORT = process.env.PORT || 3003;
 
 // Redis client
 const redisClient = redis.createClient({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: process.env.REDIS_PORT || 6379
+  url: `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`
 });
 
 redisClient.on('error', (err) => console.error('Redis error:', err));
 redisClient.on('connect', () => console.log('Connected to Redis'));
+
+// Connect to Redis
+redisClient.connect().catch(console.error);
 
 // Security middleware
 app.use(helmet());

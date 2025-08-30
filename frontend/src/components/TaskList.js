@@ -1,23 +1,30 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Container, Typography, Box, Card, CardContent, Button,
   Dialog, DialogTitle, DialogContent, TextField, DialogActions,
   List, ListItem, ListItemText, ListItemSecondaryAction,
-  IconButton, Chip, FormControl, InputLabel, Select, MenuItem
+  IconButton, Chip, FormControl, InputLabel, Select, MenuItem,
+  AppBar, Toolbar, Menu, MenuItem as MenuItemNav
 } from '@mui/material';
-import { Add, Edit, Delete, CheckCircle } from '@mui/icons-material';
+import { Add, Edit, Delete, CheckCircle, AccountCircle, Dashboard, ExitToApp, Notifications } from '@mui/icons-material';
 import { taskService } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 function TaskList() {
   const [tasks, setTasks] = useState([]);
   const [open, setOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
+  const [anchorEl, setAnchorEl] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     priority: 'medium',
     status: 'pending'
   });
+
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadTasks();
@@ -26,7 +33,7 @@ function TaskList() {
   const loadTasks = async () => {
     try {
       const response = await taskService.getTasks();
-      setTasks(response.data);
+      setTasks(response.data.tasks || []);
     } catch (error) {
       console.error('Error loading tasks:', error);
     }
@@ -72,6 +79,19 @@ function TaskList() {
     }
   };
 
+  const handleMenu = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'high': return 'error';
@@ -82,19 +102,78 @@ function TaskList() {
   };
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          Task Management
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setOpen(true)}
-        >
-          Add Task
-        </Button>
-      </Box>
+    <>
+      <AppBar position="static">
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            Task Management
+          </Typography>
+          <Button
+            color="inherit"
+            startIcon={<Dashboard />}
+            onClick={() => navigate('/dashboard')}
+            sx={{ mr: 2 }}
+          >
+            Dashboard
+          </Button>
+          <Button
+            color="inherit"
+            startIcon={<Notifications />}
+            onClick={() => navigate('/notifications')}
+            sx={{ mr: 2 }}
+          >
+            Notifications
+          </Button>
+          <div>
+            <IconButton
+              size="large"
+              aria-label="account of current user"
+              aria-controls="menu-appbar"
+              aria-haspopup="true"
+              onClick={handleMenu}
+              color="inherit"
+            >
+              <AccountCircle />
+            </IconButton>
+            <Menu
+              id="menu-appbar"
+              anchorEl={anchorEl}
+              anchorOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+              }}
+              keepMounted
+              transformOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+              }}
+              open={Boolean(anchorEl)}
+              onClose={handleClose}
+            >
+              <MenuItemNav onClick={handleClose}>
+                {user?.firstName} {user?.lastName}
+              </MenuItemNav>
+              <MenuItemNav onClick={handleLogout}>
+                <ExitToApp sx={{ mr: 1 }} /> Logout
+              </MenuItemNav>
+            </Menu>
+          </div>
+        </Toolbar>
+      </AppBar>
+
+      <Container maxWidth="md" sx={{ mt: 4 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Typography variant="h4" component="h1">
+            My Tasks
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => setOpen(true)}
+          >
+            Add Task
+          </Button>
+        </Box>
 
       <List>
         {tasks.map((task) => (
@@ -199,6 +278,7 @@ function TaskList() {
         </DialogActions>
       </Dialog>
     </Container>
+    </>
   );
 }
 
