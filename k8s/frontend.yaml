@@ -15,15 +15,12 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: your-registry/task-frontend:latest
+        image: 982424467695.dkr.ecr.ap-south-1.amazonaws.com/task-management/frontend:latest
         ports:
         - containerPort: 80
         env:
         - name: REACT_APP_API_URL
-          valueFrom:
-            configMapKeyRef:
-              name: app-config
-              key: API_GATEWAY_URL
+          value: ""
         resources:
           requests:
             memory: "64Mi"

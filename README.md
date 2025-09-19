@@ -2,6 +2,31 @@
 
 A complete microservices-based task management system built with Node.js, React, and designed for deployment on Amazon EKS. This application demonstrates modern microservices architecture, containerization, and cloud-native deployment patterns.
 
+## 🚀 Quick Deployment Options
+
+### Option 1: All-in-One Deployment (Fastest)
+```bash
+# Deploy everything with a single command
+./deploy-all-in-one.sh
+```
+
+### Option 2: Automated Step-by-Step
+```bash
+# Complete automated deployment
+./deploy.sh
+```
+
+### Option 3: Manual Deployment
+Follow the detailed guide in `DEPLOYMENT_GUIDE.md`
+
+## 📁 Deployment Files
+
+- **`k8s-all-in-one.yaml`** - Single manifest file with all resources
+- **`deploy-all-in-one.sh`** - Script to deploy the all-in-one manifest
+- **`deploy.sh`** - Full automated deployment script
+- **`DEPLOYMENT_GUIDE.md`** - Complete manual deployment guide
+- **`QUICK_START.md`** - Quick start instructions
+
 ## 🏗️ Architecture Overview
 
 This application consists of the following microservices:
@@ -904,14 +929,29 @@ REACT_APP_API_URL=""                   # API base URL (empty for proxy routing)
 6. Click "Generate"
 7. Copy the 16-character app password (format: xxxx xxxx xxxx xxxx)
 
-#### Step 3: Configure docker-compose.yml
-```yaml
-notification-service:
-  environment:
-    SMTP_HOST: smtp.gmail.com
-    SMTP_PORT: 587
-    SMTP_USER: your-email@gmail.com
-    SMTP_PASS: your-16-character-app-password  # Remove spaces
+#### Step 3: Configure Application
+```bash
+# Method 1: Update before deployment
+# Edit k8s-all-in-one.yaml and replace:
+# SMTP_USER: "your-email@gmail.com"
+# SMTP_PASS: "your-16-character-app-password"
+
+# Method 2: Update after deployment
+kubectl set env deployment/notification-service -n task-management \
+  SMTP_USER=your-email@gmail.com \
+  SMTP_PASS=your-app-password-without-spaces
+```
+
+#### Step 4: Test Email Configuration
+```bash
+# Via API
+curl -X POST http://YOUR_APP_URL/api/notifications/test-email \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{"to": "your-email@gmail.com"}'
+
+# Via Frontend
+# Login → Notifications → "Send Test Email to Me"
 ```
 
 ### Alternative Email Providers
@@ -1079,6 +1119,12 @@ docker exec -it task-management-eks-demo-redis-1 redis-cli
 ### Database connection issues
 - Wait for databases to be healthy: `docker compose ps`
 - Check database logs for connection errors
+
+### MongoDB readiness probe issues (Kubernetes)
+```bash
+# If MongoDB pods show as "Not Ready", remove readiness probe:
+kubectl patch deployment mongodb -n task-management -p '{"spec":{"template":{"spec":{"containers":[{"name":"mongodb","readinessProbe":null}]}}}}'
+```
 
 ### API calls failing
 - Verify JWT tokens are valid and not expired

@@ -1,0 +1,533 @@
+# Task Management System - Complete Kubernetes Deployment
+# Deploy with: kubectl apply -f k8s-all-in-one.yaml
+# 
+# IMPORTANT: Before deploying, update SMTP configuration:
+# 1. Replace "your-email@gmail.com" with your Gmail address
+# 2. Replace "your-app-password" with your Gmail App Password
+# 3. To get Gmail App Password:
+#    - Enable 2FA on Gmail
+#    - Go to Google Account → Security → 2-Step Verification → App passwords
+#    - Generate password for "Mail" application
+#    - Use the 16-character password (remove spaces)
+
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: task-management
+
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: task-management
+data:
+  NODE_ENV: "production"
+  MONGODB_DB: "taskmanager"
+  POSTGRES_DB: "taskmanager"
+
+---
+# Secrets
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: task-management
+type: Opaque
+data:
+  JWT_SECRET: c3VwZXJzZWNyZXRqd3R0b2tlbmZvcnRhc2ttYW5hZ2VtZW50 # supersecretjwttokenfortaskmanagement
+  MONGODB_URI: bW9uZ29kYjovL21vbmdvZGItc2VydmljZToyNzAxNy90YXNrbWFuYWdlcg== # mongodb://mongodb-service:27017/taskmanager
+  POSTGRES_URI: cG9zdGdyZXNxbDovL3Rhc2t1c2VyOnRhc2twYXNzd29yZEBwb3N0Z3Jlcy1zZXJ2aWNlOjU0MzIvdGFza21hbmFnZXI= # postgresql://taskuser:taskpassword@postgres-service:5432/taskmanager
+
+---
+# MongoDB Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: task-management
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:7-jammy
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_DATABASE
+          value: taskmanager
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "400m"
+
+---
+# MongoDB Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+  namespace: task-management
+spec:
+  selector:
+    app: mongodb
+  ports:
+  - port: 27017
+    targetPort: 27017
+  type: ClusterIP
+
+---
+# PostgreSQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: task-management
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: taskmanager
+        - name: POSTGRES_USER
+          value: taskuser
+        - name: POSTGRES_PASSWORD
+          value: taskpassword
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - taskuser
+          initialDelaySeconds: 10
+          periodSeconds: 10
+
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: task-management
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+
+---
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: task-management
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "25m"
+          limits:
+            memory: "64Mi"
+            cpu: "50m"
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: task-management
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+  type: ClusterIP
+
+---
+# User Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: task-management
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+      - name: user-service
+        image: 982424467695.dkr.ecr.ap-south-1.amazonaws.com/task-management/user-service:latest
+        ports:
+        - containerPort: 3001
+        env:
+        - name: PORT
+          value: "3001"
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: NODE_ENV
+        - name: MONGODB_URI
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: MONGODB_URI
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: JWT_SECRET
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# User Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: task-management
+spec:
+  selector:
+    app: user-service
+  ports:
+  - port: 3001
+    targetPort: 3001
+  type: ClusterIP
+
+---
+# Task Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: task-service
+  namespace: task-management
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: task-service
+  template:
+    metadata:
+      labels:
+        app: task-service
+    spec:
+      containers:
+      - name: task-service
+        image: 982424467695.dkr.ecr.ap-south-1.amazonaws.com/task-management/task-service:latest
+        ports:
+        - containerPort: 3002
+        env:
+        - name: PORT
+          value: "3002"
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: NODE_ENV
+        - name: POSTGRES_URI
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: POSTGRES_URI
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: JWT_SECRET
+        - name: USER_SERVICE_URL
+          value: "http://user-service:3001"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3002
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3002
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# Task Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: task-service
+  namespace: task-management
+spec:
+  selector:
+    app: task-service
+  ports:
+  - port: 3002
+    targetPort: 3002
+  type: ClusterIP
+
+---
+# Notification Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: task-management
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+      - name: notification-service
+        image: 982424467695.dkr.ecr.ap-south-1.amazonaws.com/task-management/notification-service:latest
+        ports:
+        - containerPort: 3003
+        env:
+        - name: PORT
+          value: "3003"
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: NODE_ENV
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: USER_SERVICE_URL
+          value: "http://user-service:3001"
+        - name: SMTP_HOST
+          value: "smtp.gmail.com"
+        - name: SMTP_PORT
+          value: "587"
+        - name: SMTP_USER
+          value: "your-email@gmail.com"
+        - name: SMTP_PASS
+          value: "your-app-password"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3003
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3003
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# Notification Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: task-management
+spec:
+  selector:
+    app: notification-service
+  ports:
+  - port: 3003
+    targetPort: 3003
+  type: ClusterIP
+
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: task-management
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: 982424467695.dkr.ecr.ap-south-1.amazonaws.com/task-management/frontend:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "25m"
+          limits:
+            memory: "64Mi"
+            cpu: "50m"
+
+---
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: task-management
+spec:
+  selector:
+    app: frontend
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
+
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: task-management-ingress
+  namespace: task-management
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "10"
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /api/auth
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 3001
+      - path: /api/users
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 3001
+      - path: /api/tasks
+        pathType: Prefix
+        backend:
+          service:
+            name: task-service
+            port:
+              number: 3002
+      - path: /api/notifications
+        pathType: Prefix
+        backend:
+          service:
+            name: notification-service
+            port:
+              number: 3003
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-service
+            port:
+              number: 80

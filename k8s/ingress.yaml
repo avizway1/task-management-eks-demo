@@ -7,19 +7,44 @@ metadata:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
-    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:region:account:certificate/cert-id
-    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /
     alb.ingress.kubernetes.io/healthcheck-interval-seconds: '30'
     alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
     alb.ingress.kubernetes.io/healthy-threshold-count: '2'
     alb.ingress.kubernetes.io/unhealthy-threshold-count: '3'
 spec:
   rules:
-  - host: taskmanager.yourdomain.com
-    http:
+  - http:
       paths:
+      - path: /api/auth
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 3001
+      - path: /api/users
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 3001
+      - path: /api/tasks
+        pathType: Prefix
+        backend:
+          service:
+            name: task-service
+            port:
+              number: 3002
+      - path: /api/notifications
+        pathType: Prefix
+        backend:
+          service:
+            name: notification-service
+            port:
+              number: 3003
       - path: /
         pathType: Prefix
         backend:
@@ -27,10 +52,3 @@ spec:
             name: frontend-service
             port:
               number: 80
-      - path: /api
-        pathType: Prefix
-        backend:
-          service:
-            name: api-gateway-service
-            port:
-              number: 8080

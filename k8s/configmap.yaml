@@ -5,7 +5,6 @@ metadata:
   namespace: task-management
 data:
   NODE_ENV: "production"
-  API_GATEWAY_URL: "http://api-gateway-service:8080"
   USER_SERVICE_URL: "http://user-service:3001"
   TASK_SERVICE_URL: "http://task-service:3002"
   NOTIFICATION_SERVICE_URL: "http://notification-service:3003"

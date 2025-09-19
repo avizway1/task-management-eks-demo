@@ -1,389 +1,318 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Container, Typography, Box, Card, CardContent, Button,
   Dialog, DialogTitle, DialogContent, TextField, DialogActions,
-  List, ListItem, ListItemText, ListItemIcon, Chip, Tab, Tabs,
-  AppBar, Toolbar, IconButton, Menu, MenuItem as MenuItemNav,
-  Alert, Snackbar, FormControl, InputLabel, Select, MenuItem,
-  Divider, Paper
+  List, ListItem, ListItemText, Chip, Tab, Tabs, Paper,
+  Grid, Divider, Alert
 } from '@mui/material';
-import {
-  Dashboard, AccountCircle, ExitToApp, Email, Send, History,
-  Notifications as NotificationsIcon, Task, CheckCircle, Schedule
+import { 
+  Email, Send, History, Science, CheckCircle, 
+  Schedule, Error as ErrorIcon 
 } from '@mui/icons-material';
-import { notificationService, taskService } from '../services/api';
+import { notificationService } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import Navigation from './Navigation';
+
+function TabPanel({ children, value, index }) {
+  return (
+    <div hidden={value !== index}>
+      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+    </div>
+  );
+}
 
 function Notifications() {
-  const [tabValue, setTabValue] = useState(0);
-  const [anchorEl, setAnchorEl] = useState(null);
+  const [tab, setTab] = useState(0);
   const [notifications, setNotifications] = useState([]);
-  const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  
-  // Email form state
-  const [emailForm, setEmailForm] = useState({
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
+  const [emailData, setEmailData] = useState({
     to: '',
     subject: '',
-    message: ''
-  });
-  
-  // Task reminder form state
-  const [reminderForm, setReminderForm] = useState({
-    taskId: '',
-    message: ''
+    text: '',
+    html: ''
   });
 
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (tabValue === 1) {
-      loadNotificationHistory();
-    } else if (tabValue === 2) {
-      loadTasks();
+    if (tab === 1) {
+      loadNotifications();
     }
-  }, [tabValue]);
+  }, [tab, user]);
 
-  const loadNotificationHistory = async () => {
+  const loadNotifications = async () => {
     try {
-      setLoading(true);
       const response = await notificationService.getHistory(user.id);
       setNotifications(response.data.notifications || []);
     } catch (error) {
       console.error('Error loading notifications:', error);
-      showSnackbar('Error loading notification history', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadTasks = async () => {
-    try {
-      const response = await taskService.getTasks();
-      setTasks(response.data.tasks || []);
-    } catch (error) {
-      console.error('Error loading tasks:', error);
-      showSnackbar('Error loading tasks', 'error');
     }
   };
 
   const handleSendEmail = async () => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
     try {
-      if (!emailForm.to || !emailForm.subject || !emailForm.message) {
-        showSnackbar('Please fill in all fields', 'error');
-        return;
-      }
-
-      setLoading(true);
-      await notificationService.sendEmail({
-        to: emailForm.to,
-        subject: emailForm.subject,
-        text: emailForm.message,
-        html: `<p>${emailForm.message.replace(/\n/g, '<br>')}</p>`,
-        userId: user.id
-      });
-
-      setEmailForm({ to: '', subject: '', message: '' });
-      showSnackbar('Email sent successfully!', 'success');
+      await notificationService.sendEmail(emailData);
+      setSuccess('Email sent successfully!');
+      setEmailData({ to: '', subject: '', text: '', html: '' });
+      if (tab === 1) loadNotifications();
     } catch (error) {
-      console.error('Error sending email:', error);
-      showSnackbar('Failed to send email', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSendTaskReminder = async () => {
-    try {
-      if (!reminderForm.taskId) {
-        showSnackbar('Please select a task', 'error');
-        return;
-      }
-
-      const selectedTask = tasks.find(t => t.id === reminderForm.taskId);
-      if (!selectedTask) {
-        showSnackbar('Task not found', 'error');
-        return;
-      }
-
-      setLoading(true);
-      await notificationService.sendTaskReminder({
-        userId: user.id,
-        taskId: selectedTask.id,
-        taskTitle: selectedTask.title,
-        dueDate: selectedTask.dueDate
-      });
-
-      setReminderForm({ taskId: '', message: '' });
-      showSnackbar('Task reminder sent successfully!', 'success');
-    } catch (error) {
-      console.error('Error sending task reminder:', error);
-      showSnackbar('Failed to send task reminder', 'error');
+      setError('Failed to send email. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleTestEmail = async () => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
     try {
-      setLoading(true);
-      await notificationService.testEmail(user.email);
-      showSnackbar('Test email sent to your registered email!', 'success');
+      await notificationService.sendTestEmail({ to: user.email });
+      setSuccess('Test email sent successfully!');
+      if (tab === 1) loadNotifications();
     } catch (error) {
-      console.error('Error sending test email:', error);
-      showSnackbar('Failed to send test email', 'error');
+      setError('Failed to send test email. Please check SMTP configuration.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMenu = (event) => {
-    setAnchorEl(event.currentTarget);
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'sent': return <CheckCircle sx={{ color: '#10b981' }} />;
+      case 'pending': return <Schedule sx={{ color: '#f59e0b' }} />;
+      case 'failed': return <ErrorIcon sx={{ color: '#ef4444' }} />;
+      default: return <Schedule sx={{ color: '#6b7280' }} />;
+    }
   };
 
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  const showSnackbar = (message, severity = 'success') => {
-    setSnackbar({ open: true, message, severity });
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
-  };
-
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case 'email': return <Email />;
-      case 'task-reminder': return <Schedule />;
-      default: return <NotificationsIcon />;
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'sent': return { bg: '#f0fdf4', color: '#10b981' };
+      case 'pending': return { bg: '#fffbeb', color: '#f59e0b' };
+      case 'failed': return { bg: '#fef2f2', color: '#ef4444' };
+      default: return { bg: '#f8fafc', color: '#6b7280' };
     }
   };
 
   return (
-    <>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+    <Box sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
+      <Navigation />
+      
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        {/* Header */}
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
             Notifications
           </Typography>
-          <Button
-            color="inherit"
-            startIcon={<Dashboard />}
-            onClick={() => navigate('/dashboard')}
-            sx={{ mr: 2 }}
+          <Typography variant="h6" color="text.secondary">
+            Send emails and manage notification history
+          </Typography>
+        </Box>
+
+        {/* Tabs */}
+        <Paper sx={{ borderRadius: 3, overflow: 'hidden' }}>
+          <Tabs 
+            value={tab} 
+            onChange={(e, newValue) => setTab(newValue)}
+            sx={{ 
+              borderBottom: 1, 
+              borderColor: 'divider',
+              '& .MuiTab-root': { 
+                textTransform: 'none', 
+                fontWeight: 600,
+                fontSize: '1rem'
+              }
+            }}
           >
-            Dashboard
-          </Button>
-          <div>
-            <IconButton
-              size="large"
-              aria-label="account of current user"
-              aria-controls="menu-appbar"
-              aria-haspopup="true"
-              onClick={handleMenu}
-              color="inherit"
-            >
-              <AccountCircle />
-            </IconButton>
-            <Menu
-              id="menu-appbar"
-              anchorEl={anchorEl}
-              anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-              keepMounted
-              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-              open={Boolean(anchorEl)}
-              onClose={handleClose}
-            >
-              <MenuItemNav onClick={handleClose}>
-                {user?.firstName} {user?.lastName}
-              </MenuItemNav>
-              <MenuItemNav onClick={handleLogout}>
-                <ExitToApp sx={{ mr: 1 }} /> Logout
-              </MenuItemNav>
-            </Menu>
-          </div>
-        </Toolbar>
-      </AppBar>
-
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Notification Center
-        </Typography>
-
-        <Paper sx={{ width: '100%', mb: 2 }}>
-          <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
-            <Tab label="Send Email" icon={<Email />} />
-            <Tab label="History" icon={<History />} />
-            <Tab label="Task Reminders" icon={<Task />} />
+            <Tab icon={<Email />} label="Send Email" iconPosition="start" />
+            <Tab icon={<History />} label="History" iconPosition="start" />
           </Tabs>
-        </Paper>
 
-        {/* Send Email Tab */}
-        {tabValue === 0 && (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Send Email Notification
-              </Typography>
-              <Box component="form" sx={{ mt: 2 }}>
-                <TextField
-                  fullWidth
-                  label="To (Email Address)"
-                  value={emailForm.to}
-                  onChange={(e) => setEmailForm({ ...emailForm, to: e.target.value })}
-                  sx={{ mb: 2 }}
-                  placeholder="recipient@example.com"
-                />
-                <TextField
-                  fullWidth
-                  label="Subject"
-                  value={emailForm.subject}
-                  onChange={(e) => setEmailForm({ ...emailForm, subject: e.target.value })}
-                  sx={{ mb: 2 }}
-                />
-                <TextField
-                  fullWidth
-                  label="Message"
-                  multiline
-                  rows={4}
-                  value={emailForm.message}
-                  onChange={(e) => setEmailForm({ ...emailForm, message: e.target.value })}
-                  sx={{ mb: 2 }}
-                />
-                <Box display="flex" gap={2}>
-                  <Button
-                    variant="contained"
-                    startIcon={<Send />}
-                    onClick={handleSendEmail}
-                    disabled={loading}
-                  >
-                    Send Email
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    onClick={handleTestEmail}
-                    disabled={loading}
-                  >
-                    Send Test Email to Me
-                  </Button>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        )}
+          {/* Alerts */}
+          {success && (
+            <Alert severity="success" sx={{ m: 3, borderRadius: 2 }} onClose={() => setSuccess('')}>
+              {success}
+            </Alert>
+          )}
+          {error && (
+            <Alert severity="error" sx={{ m: 3, borderRadius: 2 }} onClose={() => setError('')}>
+              {error}
+            </Alert>
+          )}
 
-        {/* Notification History Tab */}
-        {tabValue === 1 && (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+          {/* Send Email Tab */}
+          <TabPanel value={tab} index={0}>
+            <Box sx={{ p: 4 }}>
+              <Grid container spacing={4}>
+                <Grid item xs={12} md={8}>
+                  <Card sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                    <CardContent sx={{ p: 4 }}>
+                      <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
+                        Compose Email
+                      </Typography>
+                      
+                      <TextField
+                        fullWidth
+                        label="Recipient Email"
+                        type="email"
+                        value={emailData.to}
+                        onChange={(e) => setEmailData({ ...emailData, to: e.target.value })}
+                        margin="normal"
+                        required
+                        sx={{ mb: 2 }}
+                      />
+                      
+                      <TextField
+                        fullWidth
+                        label="Subject"
+                        value={emailData.subject}
+                        onChange={(e) => setEmailData({ ...emailData, subject: e.target.value })}
+                        margin="normal"
+                        required
+                        sx={{ mb: 2 }}
+                      />
+                      
+                      <TextField
+                        fullWidth
+                        label="Message"
+                        multiline
+                        rows={6}
+                        value={emailData.text}
+                        onChange={(e) => setEmailData({ ...emailData, text: e.target.value })}
+                        margin="normal"
+                        required
+                        sx={{ mb: 3 }}
+                      />
+                      
+                      <Button
+                        variant="contained"
+                        startIcon={<Send />}
+                        onClick={handleSendEmail}
+                        disabled={loading || !emailData.to || !emailData.subject || !emailData.text}
+                        sx={{
+                          background: 'linear-gradient(45deg, #2563eb 30%, #3b82f6 90%)',
+                          borderRadius: 2,
+                          px: 4,
+                          py: 1.5,
+                        }}
+                      >
+                        {loading ? 'Sending...' : 'Send Email'}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid item xs={12} md={4}>
+                  <Card sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                    <CardContent sx={{ p: 4 }}>
+                      <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                        Quick Actions
+                      </Typography>
+                      
+                      <Box sx={{ mt: 3 }}>
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          startIcon={<Science />}
+                          onClick={handleTestEmail}
+                          disabled={loading}
+                          sx={{ 
+                            mb: 2, 
+                            borderRadius: 2, 
+                            py: 1.5,
+                            justifyContent: 'flex-start'
+                          }}
+                        >
+                          Send Test Email to Me
+                        </Button>
+                        
+                        <Divider sx={{ my: 2 }} />
+                        
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          <strong>Your Email:</strong> {user?.email}
+                        </Typography>
+                        
+                        <Typography variant="body2" color="text.secondary">
+                          Test emails will be sent to your registered email address to verify SMTP configuration.
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+            </Box>
+          </TabPanel>
+
+          {/* History Tab */}
+          <TabPanel value={tab} index={1}>
+            <Box sx={{ p: 4 }}>
+              <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
                 Notification History
               </Typography>
-              {loading ? (
-                <Typography>Loading...</Typography>
-              ) : notifications.length === 0 ? (
-                <Typography color="textSecondary">No notifications found</Typography>
+              
+              {notifications.length === 0 ? (
+                <Paper sx={{ p: 6, textAlign: 'center', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    No notifications yet
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Send your first email to see it appear here.
+                  </Typography>
+                </Paper>
               ) : (
-                <List>
+                <Grid container spacing={3}>
                   {notifications.map((notification, index) => (
-                    <React.Fragment key={notification.id}>
-                      <ListItem>
-                        <ListItemIcon>
-                          {getNotificationIcon(notification.type)}
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={notification.subject || `${notification.type} notification`}
-                          secondary={
-                            <Box>
-                              <Typography variant="body2" color="textSecondary">
+                    <Grid item xs={12} key={index}>
+                      <Card sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                        <CardContent sx={{ p: 3 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                                {notification.subject || 'No Subject'}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                                 To: {notification.to}
                               </Typography>
-                              <Typography variant="body2" color="textSecondary">
-                                {formatDate(notification.timestamp)}
+                              <Typography variant="body2" color="text.secondary">
+                                {notification.message || notification.text}
                               </Typography>
                             </Box>
-                          }
-                        />
-                        <Chip
-                          label={notification.status}
-                          color={notification.status === 'sent' ? 'success' : 'default'}
-                          size="small"
-                        />
-                      </ListItem>
-                      {index < notifications.length - 1 && <Divider />}
-                    </React.Fragment>
+                            
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                              <Chip
+                                icon={getStatusIcon(notification.status)}
+                                label={notification.status || 'sent'}
+                                size="small"
+                                sx={{
+                                  ...getStatusColor(notification.status),
+                                  fontWeight: 600,
+                                  textTransform: 'capitalize',
+                                }}
+                              />
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(notification.createdAt || notification.timestamp).toLocaleString()}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
                   ))}
-                </List>
+                </Grid>
               )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Task Reminders Tab */}
-        {tabValue === 2 && (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Send Task Reminder
-              </Typography>
-              <Box component="form" sx={{ mt: 2 }}>
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Select Task</InputLabel>
-                  <Select
-                    value={reminderForm.taskId}
-                    label="Select Task"
-                    onChange={(e) => setReminderForm({ ...reminderForm, taskId: e.target.value })}
-                  >
-                    {tasks.map((task) => (
-                      <MenuItem key={task.id} value={task.id}>
-                        <Box>
-                          <Typography variant="body1">{task.title}</Typography>
-                          <Typography variant="body2" color="textSecondary">
-                            Status: {task.status} | Priority: {task.priority}
-                          </Typography>
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <Button
-                  variant="contained"
-                  startIcon={<Send />}
-                  onClick={handleSendTaskReminder}
-                  disabled={loading || !reminderForm.taskId}
-                >
-                  Send Task Reminder
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        )}
+            </Box>
+          </TabPanel>
+        </Paper>
       </Container>
-
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-      >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </>
+    </Box>
   );
 }
 
