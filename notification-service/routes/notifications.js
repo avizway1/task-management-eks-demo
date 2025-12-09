@@ -1,21 +1,8 @@
 const express = require('express');
-const nodemailer = require('nodemailer');
 const axios = require('axios');
+const { sendEmail, testEmailConfiguration, EMAIL_PROVIDER } = require('../services/emailService');
 
 const router = express.Router();
-
-// Email transporter setup
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: process.env.SMTP_PORT || 587,
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
-  });
-};
 
 // Send email notification
 router.post('/email', async (req, res) => {
@@ -42,17 +29,13 @@ router.post('/email', async (req, res) => {
       }
     }
 
-    const transporter = createTransporter();
-    
-    const mailOptions = {
-      from: process.env.SMTP_USER || 'noreply@taskmanager.com',
+    const info = await sendEmail({
+      from: process.env.SES_FROM_EMAIL || process.env.SMTP_USER || 'noreply@taskmanager.com',
       to: userEmail,
       subject,
       text,
       html
-    };
-
-    const info = await transporter.sendMail(mailOptions);
+    });
 
     // Store notification in Redis for tracking
     const notificationId = `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -76,7 +59,8 @@ router.post('/email', async (req, res) => {
     res.status(200).json({
       message: 'Email sent successfully',
       notificationId,
-      messageId: info.messageId
+      messageId: info.messageId,
+      provider: info.provider
     });
   } catch (error) {
     console.error('Email sending error:', error);
@@ -232,21 +216,18 @@ router.post('/test-email', async (req, res) => {
       return res.status(400).json({ error: 'Email address required' });
     }
 
-    const transporter = createTransporter();
-    
-    const mailOptions = {
-      from: process.env.SMTP_USER || 'noreply@taskmanager.com',
+    const info = await sendEmail({
+      from: process.env.SES_FROM_EMAIL || process.env.SMTP_USER || 'noreply@taskmanager.com',
       to,
       subject: 'Test Email - Task Management System',
       text: 'This is a test email from your Task Management System. If you received this, email notifications are working correctly!',
       html: '<p>This is a test email from your <strong>Task Management System</strong>.</p><p>If you received this, email notifications are working correctly!</p>'
-    };
-
-    const info = await transporter.sendMail(mailOptions);
+    });
 
     res.status(200).json({
       message: 'Test email sent successfully',
-      messageId: info.messageId
+      messageId: info.messageId,
+      provider: info.provider
     });
   } catch (error) {
     console.error('Test email error:', error);
@@ -255,6 +236,16 @@ router.post('/test-email', async (req, res) => {
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
+});
+
+// Get email provider info
+router.get('/provider', (req, res) => {
+  res.json({
+    provider: EMAIL_PROVIDER,
+    configured: EMAIL_PROVIDER === 'ses' 
+      ? !!(process.env.SES_FROM_EMAIL || process.env.AWS_REGION)
+      : !!(process.env.SMTP_USER && process.env.SMTP_PASS)
+  });
 });
 
 module.exports = router;
