@@ -2,62 +2,112 @@
 
 A complete microservices-based task management system built with Node.js, React, and designed for deployment on Amazon EKS. This application demonstrates modern microservices architecture, containerization, and cloud-native deployment patterns.
 
-## 🚀 Quick Deployment Options
+## 🚀 Quick Deployment
 
-### Option 1: All-in-One Deployment (Fastest)
+Follow the step-by-step guide in **[POC_DEPLOYMENT_GUIDE.md](POC_DEPLOYMENT_GUIDE.md)**
+
+### Quick Start Commands
 ```bash
-# Deploy everything with a single command
-./deploy-all-in-one.sh
+# 1. Set environment variables
+export AWS_REGION=ap-south-1
+export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+# 2. Update the K8s manifest with your values
+sed -i '' "s/<ACCOUNT_ID>/$ACCOUNT_ID/g; s/<REGION>/$AWS_REGION/g" k8s-deployment.yaml
+
+# 3. Deploy to EKS
+kubectl apply -f k8s-deployment.yaml
+
+# 4. Create Route53 record pointing to ALB (see POC_DEPLOYMENT_GUIDE.md Step 8)
+
+# 5. Access the application
+# https://learnaws.today
 ```
 
-### Option 2: Automated Step-by-Step
-```bash
-# Complete automated deployment
-./deploy.sh
+## 📁 Project Structure
+
+```
+task-management-eks-demo/
+├── frontend/                 # React frontend application
+├── user-service/             # User authentication service (Node.js + MongoDB)
+├── task-service/             # Task management service (Node.js + PostgreSQL)
+├── notification-service/     # Email notification service (Node.js + Redis + SES)
+├── k8s/                      # Individual K8s manifests (alternative)
+├── k8s-deployment.yaml       # All-in-one K8s manifest (MAIN)
+├── POC_DEPLOYMENT_GUIDE.md   # Step-by-step deployment guide
+├── ARCHITECTURE.md           # System architecture details
+└── README.md                 # This file
 ```
 
-### Option 3: Manual Deployment
-Follow the detailed guide in `DEPLOYMENT_GUIDE.md`
+## 📋 Files to Update Before Deployment
 
-## 📁 Deployment Files
+In `k8s-deployment.yaml`, replace these placeholders:
 
-- **`k8s-all-in-one.yaml`** - Single manifest file with all resources
-- **`deploy-all-in-one.sh`** - Script to deploy the all-in-one manifest
-- **`deploy.sh`** - Full automated deployment script
-- **`DEPLOYMENT_GUIDE.md`** - Complete manual deployment guide
-- **`QUICK_START.md`** - Quick start instructions
+| Placeholder | Description | Example |
+|-------------|-------------|---------|
+| `<ACCOUNT_ID>` | Your AWS Account ID | `982424467695` |
+| `<REGION>` | Your AWS Region | `ap-south-1` |
+
+**Domain**: `https://learnaws.today` (ACM certificate already configured)
 
 ## 🏗️ Architecture Overview
 
 This application consists of the following microservices:
 
-- **Frontend** (React + Material-UI + Nginx) - Port 3000
+- **Frontend** (React + Material-UI + Nginx) - Port 80
 - **User Service** (Node.js + MongoDB + JWT Auth) - Port 3001
 - **Task Service** (Node.js + PostgreSQL + Auth Middleware) - Port 3002
-- **Notification Service** (Node.js + Redis + SMTP) - Port 3003
+- **Notification Service** (Node.js + Redis + AWS SES/SMTP) - Port 3003
 
 ### Architecture Diagram
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   User Service   │    │  Task Service   │
-│   (React)       │◄──►│   (Node.js)      │◄──►│   (Node.js)     │
-│   Port 3000     │    │   Port 3001      │    │   Port 3002     │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       ▼                       ▼
-         │              ┌─────────────────┐    ┌─────────────────┐
-         │              │    MongoDB      │    │   PostgreSQL    │
-         │              │   (Users DB)    │    │   (Tasks DB)    │
-         │              └─────────────────┘    └─────────────────┘
-         │
-         ▼
-┌─────────────────┐    ┌──────────────────┐
-│ Notification    │    │      Redis       │
-│ Service         │◄──►│  (Notifications) │
-│ (Node.js)       │    │                  │
-│ Port 3003       │    │                  │
-└─────────────────┘    └──────────────────┘
+                              ┌─────────────────────────────────────────────────────────────┐
+                              │                        AWS Cloud                             │
+                              │  ┌─────────────────────────────────────────────────────────┐ │
+                              │  │                    Amazon EKS Cluster                    │ │
+┌──────────────┐              │  │                                                         │ │
+│   Internet   │              │  │  ┌─────────────────────────────────────────────────┐   │ │
+│    Users     │──────────────┼──┼─►│            AWS Application Load Balancer        │   │ │
+└──────────────┘              │  │  │                    (Ingress)                     │   │ │
+                              │  │  └─────────────────────────────────────────────────┘   │ │
+                              │  │                          │                              │ │
+                              │  │         ┌────────────────┼────────────────┐            │ │
+                              │  │         ▼                ▼                ▼            │ │
+                              │  │  ┌────────────┐  ┌────────────┐  ┌────────────────┐   │ │
+                              │  │  │  Frontend  │  │   User     │  │     Task       │   │ │
+                              │  │  │  (React)   │  │  Service   │  │    Service     │   │ │
+                              │  │  │  Port 80   │  │  Port 3001 │  │   Port 3002    │   │ │
+                              │  │  └────────────┘  └─────┬──────┘  └───────┬────────┘   │ │
+                              │  │                        │                  │            │ │
+                              │  │                        ▼                  ▼            │ │
+                              │  │                 ┌────────────┐    ┌────────────┐      │ │
+                              │  │                 │  MongoDB   │    │ PostgreSQL │      │ │
+                              │  │                 │ (Users DB) │    │ (Tasks DB) │      │ │
+                              │  │                 └────────────┘    └────────────┘      │ │
+                              │  │                                                         │ │
+                              │  │  ┌────────────────────┐    ┌────────────┐              │ │
+                              │  │  │   Notification     │───►│   Redis    │              │ │
+                              │  │  │     Service        │    │  (Cache)   │              │ │
+                              │  │  │    Port 3003       │    └────────────┘              │ │
+                              │  │  └─────────┬──────────┘                                │ │
+                              │  │            │ IAM Role (IRSA)                           │ │
+                              │  └────────────┼───────────────────────────────────────────┘ │
+                              │               ▼                                             │
+                              │       ┌────────────────┐                                    │
+                              │       │   Amazon SES   │                                    │
+                              │       │ (Email Service)│                                    │
+                              │       └────────────────┘                                    │
+                              └─────────────────────────────────────────────────────────────┘
 ```
+
+### AWS Services Used
+| Service | Purpose |
+|---------|---------|
+| **Amazon EKS** | Kubernetes cluster for container orchestration |
+| **Amazon ECR** | Container registry for Docker images |
+| **Amazon SES** | Email delivery service for notifications |
+| **AWS ALB** | Application Load Balancer for ingress traffic |
+| **IAM Roles** | Service account authentication (IRSA) |
 
 ## 📋 Prerequisites
 
@@ -137,17 +187,25 @@ sequenceDiagram
 - **Filter Tasks**: By status, priority, or search term
 - **Task Statistics**: View counts on dashboard
 
-### 3. Notification System Flow
+### 3. Notification System Flow (AWS SES)
 ```mermaid
 sequenceDiagram
     participant U as User
     participant F as Frontend
     participant NS as Notification Service
     participant R as Redis
-    participant SMTP as Email Server
+    participant SES as AWS SES
     
     U->>F: Navigate to Notifications
     F->>F: Display notification center
+    U->>F: Send email notification
+    F->>NS: POST /api/notifications/email
+    NS->>SES: SendEmail (via IAM Role)
+    SES-->>NS: MessageId returned
+    NS->>R: Store notification history
+    R-->>NS: Stored successfully
+    NS-->>F: Success response
+    F-->>U: Email sent confirmation
     U->>F: Send email notification
     F->>NS: POST /api/notifications/email
     NS->>SMTP: Send email via SMTP
@@ -841,8 +899,10 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
 
 ### Notification Service (Port 3003)
 - **Database**: Redis for notification history and caching
+- **Email Provider**: AWS SES (production) or SMTP (development)
 - **Features**: 
-  - SMTP email sending with multiple provider support
+  - AWS SES integration with IAM roles (IRSA)
+  - Fallback SMTP support for development
   - Professional HTML email templates
   - Task reminder automation
   - Notification history tracking
@@ -854,7 +914,8 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   - `GET /api/notifications/history/:userId` - Get notification history
   - `GET /api/notifications/status/:id` - Check notification status
   - `POST /api/notifications/test-email` - Send test email
-- **Integration**: SMTP configuration, Redis storage, user service integration
+  - `GET /api/notifications/provider` - Check current email provider config
+- **Integration**: AWS SES via SDK, Redis storage, IAM roles for authentication
 
 ### Frontend Service (Port 3000)
 - **Framework**: React 18 with Material-UI v5
@@ -893,13 +954,20 @@ USER_SERVICE_URL=http://user-service:3001         # User service endpoint
 
 ### Notification Service Environment Variables
 ```bash
-NODE_ENV=development                    # Environment mode
+NODE_ENV=production                     # Environment mode
 PORT=3003                              # Service port
-REDIS_HOST=redis                       # Redis host
+REDIS_HOST=redis-service               # Redis host
 REDIS_PORT=6379                        # Redis port
-USER_SERVICE_URL=http://user-service:3001         # User service endpoint
+USER_SERVICE_URL=http://user-service:3001  # User service endpoint
 
-# SMTP Configuration (Required for email functionality)
+# Email Provider Selection
+EMAIL_PROVIDER=ses                     # 'ses' for AWS SES, 'smtp' for SMTP/Gmail
+
+# AWS SES Configuration (Production - Recommended)
+AWS_REGION=ap-south-1                  # AWS region for SES
+SES_FROM_EMAIL=noreply@yourdomain.com  # Verified sender email
+
+# SMTP Configuration (Development - Alternative)
 SMTP_HOST=smtp.gmail.com               # SMTP server host
 SMTP_PORT=587                          # SMTP server port
 SMTP_USER=your-email@gmail.com         # SMTP username
@@ -913,102 +981,123 @@ REACT_APP_API_URL=""                   # API base URL (empty for proxy routing)
 
 ## 📧 Email Notification Configuration
 
-### Gmail Setup (Recommended for Development)
+The notification service supports two email providers:
+- **AWS SES** (Recommended for Production/EKS)
+- **SMTP/Gmail** (For Development)
+
+### AWS SES Setup (Recommended for EKS)
+
+AWS SES provides better deliverability, scalability, and native AWS integration using IAM roles.
+
+#### Step 1: Verify Email Identity in SES
+```bash
+# Verify your sender email address
+aws ses verify-email-identity --email-address your-email@domain.com --region ap-south-1
+
+# Check verification status (click the link in verification email first)
+aws ses get-identity-verification-attributes --identities your-email@domain.com --region ap-south-1
+```
+
+#### Step 2: Create IAM Policy for SES
+```bash
+# Create SES policy
+cat > ses-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["ses:SendEmail", "ses:SendRawEmail"],
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+
+aws iam create-policy --policy-name TaskManagementSESPolicy --policy-document file://ses-policy.json
+```
+
+#### Step 3: Create IAM Role for Service Account (IRSA)
+```bash
+# Get your cluster OIDC provider
+CLUSTER_NAME="your-cluster-name"
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+OIDC_PROVIDER=$(aws eks describe-cluster --name $CLUSTER_NAME --query "cluster.identity.oidc.issuer" --output text | sed -e "s/^https:\/\///")
+
+# Create trust policy and IAM role
+# See setup-ses.sh for complete script
+```
+
+#### Step 4: Configure Notification Service for SES
+```bash
+# Create service account with IAM role annotation
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: notification-service-sa
+  namespace: task-management-docker
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::${ACCOUNT_ID}:role/TaskManagementSESRole
+EOF
+
+# Update notification service environment
+kubectl set env deployment/notification-service -n task-management-docker \
+  EMAIL_PROVIDER=ses \
+  AWS_REGION=ap-south-1 \
+  SES_FROM_EMAIL=your-verified-email@domain.com
+
+# Patch deployment to use service account
+kubectl patch deployment notification-service -n task-management-docker \
+  -p '{"spec":{"template":{"spec":{"serviceAccountName":"notification-service-sa"}}}}'
+```
+
+#### Step 5: Test SES Email
+```bash
+# Check provider configuration
+curl http://YOUR_APP_URL/api/notifications/provider
+
+# Send test email
+curl -X POST http://YOUR_APP_URL/api/notifications/test-email \
+  -H "Content-Type: application/json" \
+  -d '{"to": "your-verified-email@domain.com"}'
+```
+
+> **Note**: SES sandbox mode only allows sending to verified email addresses. Request production access in AWS Console for unrestricted sending.
+
+---
+
+### Gmail/SMTP Setup (For Development)
 
 #### Step 1: Enable 2-Factor Authentication
 1. Go to [Google Account Security](https://myaccount.google.com/security)
-2. Enable "2-Step Verification" if not already enabled
-3. Complete the 2FA setup process
+2. Enable "2-Step Verification"
 
 #### Step 2: Generate App Password
-1. In Google Account Security, go to "2-Step Verification"
-2. Scroll down to "App passwords"
-3. Click "Select app" → Choose "Mail"
-4. Click "Select device" → Choose "Other (Custom name)"
-5. Enter "Task Management System"
-6. Click "Generate"
-7. Copy the 16-character app password (format: xxxx xxxx xxxx xxxx)
+1. Go to Google Account → Security → 2-Step Verification → App passwords
+2. Generate password for "Mail" application
+3. Copy the 16-character app password
 
 #### Step 3: Configure Application
 ```bash
-# Method 1: Update before deployment
-# Edit k8s-all-in-one.yaml and replace:
-# SMTP_USER: "your-email@gmail.com"
-# SMTP_PASS: "your-16-character-app-password"
-
-# Method 2: Update after deployment
-kubectl set env deployment/notification-service -n task-management \
+kubectl set env deployment/notification-service -n task-management-docker \
+  EMAIL_PROVIDER=smtp \
+  SMTP_HOST=smtp.gmail.com \
+  SMTP_PORT=587 \
   SMTP_USER=your-email@gmail.com \
-  SMTP_PASS=your-app-password-without-spaces
+  SMTP_PASS=your-app-password
 ```
 
-#### Step 4: Test Email Configuration
-```bash
-# Via API
-curl -X POST http://YOUR_APP_URL/api/notifications/test-email \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{"to": "your-email@gmail.com"}'
+### Email Provider Comparison
 
-# Via Frontend
-# Login → Notifications → "Send Test Email to Me"
-```
-
-### Alternative Email Providers
-
-#### Microsoft Outlook/Hotmail
-```yaml
-SMTP_HOST: smtp-mail.outlook.com
-SMTP_PORT: 587
-SMTP_USER: your-email@outlook.com
-SMTP_PASS: your-password
-```
-
-#### Yahoo Mail
-```yaml
-SMTP_HOST: smtp.mail.yahoo.com
-SMTP_PORT: 587
-SMTP_USER: your-email@yahoo.com
-SMTP_PASS: your-app-password  # Generate in Yahoo Account Security
-```
-
-#### Custom SMTP Server
-```yaml
-SMTP_HOST: mail.yourdomain.com
-SMTP_PORT: 587  # or 465 for SSL, 25 for non-encrypted
-SMTP_USER: noreply@yourdomain.com
-SMTP_PASS: your-smtp-password
-```
-
-### Email Testing Workflow
-
-#### 1. Configure SMTP Settings
-Edit `docker-compose.yml` with your email provider settings
-
-#### 2. Restart Services
-```bash
-docker compose down
-docker compose up --build -d
-```
-
-#### 3. Test Email Configuration
-```bash
-# Method 1: Using API directly
-curl -X POST http://localhost:3003/api/notifications/test-email \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{"to": "your-test-email@example.com"}'
-
-# Method 2: Using Frontend
-# 1. Login to http://localhost:3000
-# 2. Navigate to Notifications
-# 3. Click "Send Test Email to Me"
-```
-
-#### 4. Verify Email Delivery
-- Check your inbox for test email
-- Check spam/junk folder if not received
-- Review notification service logs: `docker compose logs notification-service`
+| Feature | AWS SES | Gmail SMTP |
+|---------|---------|------------|
+| **Best For** | Production | Development |
+| **Authentication** | IAM Roles (IRSA) | Username/Password |
+| **Scalability** | High | Limited (500/day) |
+| **Cost** | $0.10/1000 emails | Free |
+| **Setup Complexity** | Medium | Easy |
+| **Deliverability** | Excellent | Good |
 
 ### Notification Features Overview
 

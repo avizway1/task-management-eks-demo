@@ -133,7 +133,9 @@ function Notifications() {
             }}
           >
             <Tab icon={<Email />} label="Send Email" iconPosition="start" />
+            {/* History tab commented out - feature not fully implemented
             <Tab icon={<History />} label="History" iconPosition="start" />
+            */}
           </Tabs>
 
           {/* Alerts */}
@@ -152,7 +154,7 @@ function Notifications() {
           <TabPanel value={tab} index={0}>
             <Box sx={{ p: 4 }}>
               <Grid container spacing={4}>
-                <Grid item xs={12} md={8}>
+                <Grid item xs={12}>
                   <Card sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
                     <CardContent sx={{ p: 4 }}>
                       <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
@@ -210,6 +212,7 @@ function Notifications() {
                   </Card>
                 </Grid>
 
+{/* Quick Actions section commented out - SES configuration required
                 <Grid item xs={12} md={4}>
                   <Card sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
                     <CardContent sx={{ p: 4 }}>
@@ -247,11 +250,12 @@ function Notifications() {
                     </CardContent>
                   </Card>
                 </Grid>
+*/}
               </Grid>
             </Box>
           </TabPanel>
 
-          {/* History Tab */}
+{/* History Tab commented out - feature not fully implemented
           <TabPanel value={tab} index={1}>
             <Box sx={{ p: 4 }}>
               <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
@@ -310,6 +314,7 @@ function Notifications() {
               )}
             </Box>
           </TabPanel>
+*/}
         </Paper>
       </Container>
     </Box>

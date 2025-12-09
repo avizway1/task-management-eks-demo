@@ -1,14 +1,11 @@
-# Task Management System - Complete Kubernetes Deployment
-# Deploy with: kubectl apply -f k8s-all-in-one.yaml
+# Task Management System - Kubernetes Deployment
 # 
-# IMPORTANT: Before deploying, update SMTP configuration:
-# 1. Replace "your-email@gmail.com" with your Gmail address
-# 2. Replace "your-app-password" with your Gmail App Password
-# 3. To get Gmail App Password:
-#    - Enable 2FA on Gmail
-#    - Go to Google Account → Security → 2-Step Verification → App passwords
-#    - Generate password for "Mail" application
-#    - Use the 16-character password (remove spaces)
+# BEFORE DEPLOYING, replace these placeholders:
+#   - 982424467695  : Your AWS Account ID (e.g., 123456789012)
+#   - ap-south-1      : Your AWS Region (e.g., ap-south-1)
+#
+# Quick replace command:
+#   sed -i 's/982424467695/YOUR_ACCOUNT_ID/g; s/ap-south-1/YOUR_REGION/g' k8s-deployment.yaml
 
 ---
 # Namespace
@@ -38,12 +35,13 @@ metadata:
   namespace: task-management
 type: Opaque
 data:
-  JWT_SECRET: c3VwZXJzZWNyZXRqd3R0b2tlbmZvcnRhc2ttYW5hZ2VtZW50 # supersecretjwttokenfortaskmanagement
-  MONGODB_URI: bW9uZ29kYjovL21vbmdvZGItc2VydmljZToyNzAxNy90YXNrbWFuYWdlcg== # mongodb://mongodb-service:27017/taskmanager
-  POSTGRES_URI: cG9zdGdyZXNxbDovL3Rhc2t1c2VyOnRhc2twYXNzd29yZEBwb3N0Z3Jlcy1zZXJ2aWNlOjU0MzIvdGFza21hbmFnZXI= # postgresql://taskuser:taskpassword@postgres-service:5432/taskmanager
+  # base64 encoded values - decode with: echo "value" | base64 -d
+  JWT_SECRET: c3VwZXJzZWNyZXRqd3R0b2tlbmZvcnRhc2ttYW5hZ2VtZW50
+  MONGODB_URI: bW9uZ29kYjovL21vbmdvZGItc2VydmljZToyNzAxNy90YXNrbWFuYWdlcg==
+  POSTGRES_URI: cG9zdGdyZXNxbDovL3Rhc2t1c2VyOnRhc2twYXNzd29yZEBwb3N0Z3Jlcy1zZXJ2aWNlOjU0MzIvdGFza21hbmFnZXI=
 
 ---
-# MongoDB Deployment
+# MongoDB
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -74,17 +72,7 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "400m"
-        readinessProbe:
-          exec:
-            command:
-            - mongosh
-            - --eval
-            - "db.adminCommand('ping')"
-          initialDelaySeconds: 10
-          periodSeconds: 10
-
 ---
-# MongoDB Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -96,10 +84,9 @@ spec:
   ports:
   - port: 27017
     targetPort: 27017
-  type: ClusterIP
 
 ---
-# PostgreSQL Deployment
+# PostgreSQL
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -136,15 +123,10 @@ spec:
             cpu: "200m"
         readinessProbe:
           exec:
-            command:
-            - pg_isready
-            - -U
-            - taskuser
+            command: ["pg_isready", "-U", "taskuser"]
           initialDelaySeconds: 10
           periodSeconds: 10
-
 ---
-# PostgreSQL Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -156,10 +138,9 @@ spec:
   ports:
   - port: 5432
     targetPort: 5432
-  type: ClusterIP
 
 ---
-# Redis Deployment
+# Redis
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -189,14 +170,10 @@ spec:
             cpu: "50m"
         readinessProbe:
           exec:
-            command:
-            - redis-cli
-            - ping
+            command: ["redis-cli", "ping"]
           initialDelaySeconds: 5
           periodSeconds: 5
-
 ---
-# Redis Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -208,17 +185,17 @@ spec:
   ports:
   - port: 6379
     targetPort: 6379
-  type: ClusterIP
+
 
 ---
-# User Service Deployment
+# User Service - UPDATE 982424467695 and ap-south-1
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: user-service
   namespace: task-management
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: user-service
@@ -229,7 +206,7 @@ spec:
     spec:
       containers:
       - name: user-service
-        image: 982424467695.dkr.ecr.REGION.amazonaws.com/task-management/user-service:latest
+        image: 982424467695.dkr.ecr.ap-south-1.amazonaws.com/task-management/user-service:latest
         ports:
         - containerPort: 3001
         env:
@@ -269,9 +246,7 @@ spec:
             port: 3001
           initialDelaySeconds: 5
           periodSeconds: 5
-
 ---
-# User Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -283,17 +258,16 @@ spec:
   ports:
   - port: 3001
     targetPort: 3001
-  type: ClusterIP
 
 ---
-# Task Service Deployment
+# Task Service - UPDATE 982424467695 and ap-south-1
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: task-service
   namespace: task-management
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: task-service
@@ -304,7 +278,7 @@ spec:
     spec:
       containers:
       - name: task-service
-        image: 982424467695.dkr.ecr.REGION.amazonaws.com/task-management/task-service:latest
+        image: 982424467695.dkr.ecr.ap-south-1.amazonaws.com/task-management/task-service:latest
         ports:
         - containerPort: 3002
         env:
@@ -346,9 +320,7 @@ spec:
             port: 3002
           initialDelaySeconds: 5
           periodSeconds: 5
-
 ---
-# Task Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -360,17 +332,27 @@ spec:
   ports:
   - port: 3002
     targetPort: 3002
-  type: ClusterIP
+
 
 ---
-# Notification Service Deployment
+# Service Account for Notification Service (IRSA for SES)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: notification-service-sa
+  namespace: task-management
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::982424467695:role/TaskManagementSESRole
+
+---
+# Notification Service - UPDATE 982424467695 and ap-south-1
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: notification-service
   namespace: task-management
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: notification-service
@@ -379,9 +361,10 @@ spec:
       labels:
         app: notification-service
     spec:
+      serviceAccountName: notification-service-sa
       containers:
       - name: notification-service
-        image: 982424467695.dkr.ecr.REGION.amazonaws.com/task-management/notification-service:latest
+        image: 982424467695.dkr.ecr.ap-south-1.amazonaws.com/task-management/notification-service:latest
         ports:
         - containerPort: 3003
         env:
@@ -398,14 +381,14 @@ spec:
           value: "6379"
         - name: USER_SERVICE_URL
           value: "http://user-service:3001"
-        - name: SMTP_HOST
-          value: "smtp.gmail.com"
-        - name: SMTP_PORT
-          value: "587"
-        - name: SMTP_USER
-          value: "your-email@gmail.com"
-        - name: SMTP_PASS
-          value: "your-app-password"
+        - name: EMAIL_PROVIDER
+          value: "ses"
+        - name: SES_FROM_EMAIL
+          value: "avizway@gmail.com"
+        - name: TASK_OWNER_EMAIL
+          value: "avizway@gmail.com"
+        - name: AWS_REGION
+          value: "ap-south-1"
         resources:
           requests:
             memory: "64Mi"
@@ -425,9 +408,7 @@ spec:
             port: 3003
           initialDelaySeconds: 5
           periodSeconds: 5
-
 ---
-# Notification Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -439,17 +420,16 @@ spec:
   ports:
   - port: 3003
     targetPort: 3003
-  type: ClusterIP
 
 ---
-# Frontend Deployment
+# Frontend - UPDATE 982424467695 and ap-south-1
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
   namespace: task-management
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: frontend
@@ -460,7 +440,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: 982424467695.dkr.ecr.REGION.amazonaws.com/task-management/frontend:latest
+        image: 982424467695.dkr.ecr.ap-south-1.amazonaws.com/task-management/frontend:latest
         ports:
         - containerPort: 80
         resources:
@@ -470,9 +450,7 @@ spec:
           limits:
             memory: "64Mi"
             cpu: "50m"
-
 ---
-# Frontend Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -484,24 +462,48 @@ spec:
   ports:
   - port: 80
     targetPort: 80
-  type: ClusterIP
 
 ---
-# Ingress
+# Ingress (AWS ALB with Route53 Domain)
+# 
+# BEFORE DEPLOYING:
+# 1. Replace <ACM_CERTIFICATE_ARN> with your ACM certificate ARN for learnaws.today
+#    Get it from: aws acm list-certificates --region ap-south-1
+# 2. Ensure your Route53 hosted zone exists for learnaws.today
+#
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: task-management-ingress
   namespace: task-management
   annotations:
-    kubernetes.io/ingress.class: alb
+    # ALB Configuration
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "30"
+    alb.ingress.kubernetes.io/load-balancer-name: task-management-alb
+    
+    # HTTPS/SSL Configuration
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-south-1:982424467695:certificate/3bd1885f-1ece-472c-9abf-a2d263ae5cbb
+    
+    # Health Check Configuration
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "10"
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+    alb.ingress.kubernetes.io/success-codes: "200,404"
+    
+    # Performance
     alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
+    
+    # External DNS (auto-creates Route53 record)
+    external-dns.alpha.kubernetes.io/hostname: learnaws.today,www.learnaws.today
 spec:
+  ingressClassName: alb
   rules:
-  - http:
+  # Main domain
+  - host: learnaws.today
+    http:
       paths:
       - path: /api/auth
         pathType: Prefix
@@ -531,6 +533,17 @@ spec:
             name: notification-service
             port:
               number: 3003
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-service
+            port:
+              number: 80
+  # WWW subdomain
+  - host: www.learnaws.today
+    http:
+      paths:
       - path: /
         pathType: Prefix
         backend:

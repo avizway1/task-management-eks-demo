@@ -1,8 +1,31 @@
 const express = require('express');
 const { Op } = require('sequelize');
+const axios = require('axios');
 const Task = require('../models/Task');
 
 const router = express.Router();
+
+// Notification service URL (internal K8s service)
+const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3003';
+
+// Helper function to send task notification
+const sendTaskNotification = async (task, userEmail, notificationType = 'created') => {
+  try {
+    await axios.post(`${NOTIFICATION_SERVICE_URL}/api/notifications/task-event`, {
+      taskId: task.id,
+      taskTitle: task.title,
+      taskDescription: task.description,
+      taskPriority: task.priority,
+      taskDueDate: task.dueDate,
+      userEmail: userEmail,
+      notificationType: notificationType
+    });
+    console.log(`Task ${notificationType} notification sent for task: ${task.id}`);
+  } catch (error) {
+    // Log error but don't fail the task creation
+    console.error(`Failed to send task notification: ${error.message}`);
+  }
+};
 
 // Get all tasks for the authenticated user
 router.get('/', async (req, res) => {
@@ -86,6 +109,9 @@ router.post('/', async (req, res) => {
       dueDate: dueDate ? new Date(dueDate) : null,
       tags: tags || []
     });
+
+    // Send email notification for new task (async, non-blocking)
+    sendTaskNotification(task, req.user.email, 'created');
 
     res.status(201).json({
       message: 'Task created successfully',

@@ -21,14 +21,25 @@ redisClient.on('connect', () => console.log('Connected to Redis'));
 // Connect to Redis
 redisClient.connect().catch(console.error);
 
+// Health check endpoint (before rate limiting for K8s probes)
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    service: 'notification-service',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 // Security middleware
 app.use(helmet());
 app.use(cors());
 
-// Rate limiting
+// Rate limiting (skip health endpoint)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100
+  max: 100,
+  skip: (req) => req.path === '/health'
 });
 app.use(limiter);
 
@@ -40,16 +51,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
   req.redisClient = redisClient;
   next();
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'healthy', 
-    service: 'notification-service',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
 });
 
 // Routes

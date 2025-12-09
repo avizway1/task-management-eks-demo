@@ -11,14 +11,25 @@ const authMiddleware = require('./middleware/auth');
 const app = express();
 const PORT = process.env.PORT || 3002;
 
+// Health check endpoint (before rate limiting for K8s probes)
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    service: 'task-service',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 // Security middleware
 app.use(helmet());
 app.use(cors());
 
-// Rate limiting
+// Rate limiting (skip health endpoint)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200
+  max: 200,
+  skip: (req) => req.path === '/health'
 });
 app.use(limiter);
 
@@ -34,16 +45,6 @@ sequelize.authenticate()
   })
   .then(() => console.log('Database synchronized'))
   .catch(err => console.error('Database connection error:', err));
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'healthy', 
-    service: 'task-service',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
-});
 
 // Routes
 app.use('/api/tasks', authMiddleware, taskRoutes);

@@ -248,4 +248,130 @@ router.get('/provider', (req, res) => {
   });
 });
 
+// Task event notification (called by task-service)
+router.post('/task-event', async (req, res) => {
+  try {
+    const { taskId, taskTitle, taskDescription, taskPriority, taskDueDate, userEmail, notificationType } = req.body;
+
+    if (!taskTitle) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: taskTitle' 
+      });
+    }
+
+    // Use TASK_OWNER_EMAIL env var or fallback to SES_FROM_EMAIL
+    // This is needed because SES sandbox requires verified recipients
+    const recipientEmail = process.env.TASK_OWNER_EMAIL || process.env.SES_FROM_EMAIL || userEmail;
+
+    const priorityColors = {
+      high: '#ef4444',
+      medium: '#f59e0b',
+      low: '#10b981'
+    };
+
+    const priorityColor = priorityColors[taskPriority] || '#6b7280';
+    const dueDateText = taskDueDate ? new Date(taskDueDate).toLocaleDateString() : 'No due date';
+    
+    let subject, text, html;
+
+    if (notificationType === 'created') {
+      subject = `✅ New Task Created: ${taskTitle}`;
+      text = `
+Hello!
+
+A new task has been created in your Task Management System.
+
+Task Details:
+- Title: ${taskTitle}
+- Description: ${taskDescription || 'No description'}
+- Priority: ${taskPriority || 'medium'}
+- Due Date: ${dueDateText}
+
+Log in to your task manager to view and manage this task.
+
+Best regards,
+Task Management System
+      `;
+
+      html = `
+<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">✅ New Task Created</h1>
+  </div>
+  
+  <div style="background-color: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">Hello! A new task has been created in your Task Management System.</p>
+    
+    <div style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; border-left: 4px solid ${priorityColor};">
+      <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 20px;">${taskTitle}</h2>
+      <p style="color: #64748b; margin: 0 0 15px 0;">${taskDescription || 'No description provided'}</p>
+      
+      <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+        <div>
+          <span style="color: #94a3b8; font-size: 12px; text-transform: uppercase;">Priority</span>
+          <p style="margin: 5px 0 0 0; color: ${priorityColor}; font-weight: 600; text-transform: capitalize;">${taskPriority || 'medium'}</p>
+        </div>
+        <div>
+          <span style="color: #94a3b8; font-size: 12px; text-transform: uppercase;">Due Date</span>
+          <p style="margin: 5px 0 0 0; color: #374151; font-weight: 600;">${dueDateText}</p>
+        </div>
+      </div>
+    </div>
+    
+    <p style="color: #64748b; font-size: 14px; margin-top: 25px; text-align: center;">
+      Log in to your task manager to view and manage this task.
+    </p>
+  </div>
+  
+  <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 20px;">
+    Task Management System - Powered by AWS
+  </p>
+</div>
+      `;
+    }
+
+    const info = await sendEmail({
+      from: process.env.SES_FROM_EMAIL || process.env.SMTP_USER || 'noreply@taskmanager.com',
+      to: recipientEmail,
+      subject,
+      text,
+      html
+    });
+
+    // Store notification in Redis
+    const notificationId = `task_${notificationType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const notification = {
+      id: notificationId,
+      type: `task_${notificationType}`,
+      to: recipientEmail,
+      subject,
+      taskId,
+      status: 'sent',
+      messageId: info.messageId,
+      timestamp: new Date().toISOString()
+    };
+
+    await req.redisClient.setEx(
+      `notification:${notificationId}`, 
+      86400 * 7, // 7 days
+      JSON.stringify(notification)
+    );
+
+    console.log(`Task ${notificationType} email sent to ${userEmail} for task: ${taskTitle}`);
+
+    res.status(200).json({
+      message: `Task ${notificationType} notification sent successfully`,
+      notificationId,
+      messageId: info.messageId,
+      provider: info.provider
+    });
+  } catch (error) {
+    console.error('Task event notification error:', error);
+    res.status(500).json({ 
+      error: 'Failed to send task notification',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 module.exports = router;
