@@ -1222,4 +1222,4 @@ kubectl patch deployment mongodb -n task-management -p '{"spec":{"template":{"sp
 
 ## License
 
-This project is for demonstration purposes as part of an EKS microservices architecture example.
+This project is for demonstration purposes as part of an EKS microservices architecture, designed and implemented by "Avinash Reddy Thipparthi".
