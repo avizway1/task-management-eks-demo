@@ -75,19 +75,7 @@ source:
 kubectl apply -f argocd-application.yaml
 ```
 
-**Option B: Using ArgoCD CLI**
-```bash
-argocd app create task-management \
-  --repo https://github.com/YOUR_USERNAME/YOUR_REPO.git \
-  --path k8s \
-  --dest-server https://kubernetes.default.svc \
-  --dest-namespace task-management \
-  --sync-policy automated \
-  --auto-prune \
-  --self-heal
-```
-
-**Option C: Using ArgoCD UI**
+**Option B: Using ArgoCD UI**
 1. Open ArgoCD UI
 2. Click "New App"
 3. Fill in:
