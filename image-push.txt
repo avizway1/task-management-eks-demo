@@ -1,0 +1,42 @@
+aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 982424467695.dkr.ecr.ap-south-1.amazonaws.com
+
+
+export REGISTRY=982424467695.dkr.ecr.ap-south-1.amazonaws.com
+
+docker buildx build --platform linux/amd64 --load -t task-management/frontend ./frontend
+docker tag task-management/frontend:latest $REGISTRY/task-management/frontend:latest
+docker push $REGISTRY/task-management/frontend:latest
+
+---
+
+docker buildx build --platform linux/amd64 --load -t task-management/user-service ./user-service
+docker tag task-management/user-service:latest $REGISTRY/task-management/user-service:latest
+docker push $REGISTRY/task-management/user-service:latest
+
+---
+
+docker buildx build --platform linux/amd64 --load -t task-management/task-service ./task-service
+docker tag task-management/task-service:latest $REGISTRY/task-management/task-service:latest
+docker push $REGISTRY/task-management/task-service:latest
+
+---
+
+docker buildx build --platform linux/amd64 --load -t task-management/notification-service ./notification-service
+
+docker tag task-management/notification-service:latest $REGISTRY/task-management/notification-service:latest
+
+docker push $REGISTRY/task-management/notification-service:latest
+
+
+(or use below script)
+
+for SERVICE in frontend user-service task-service notification-service; do
+  echo "Building $SERVICE..."
+  docker buildx build --platform linux/amd64 --load -t task-management/$SERVICE ./$SERVICE
+  docker tag task-management/$SERVICE:latest $REGISTRY/task-management/$SERVICE:latest
+  docker push $REGISTRY/task-management/$SERVICE:latest
+done
+
+
+
+
