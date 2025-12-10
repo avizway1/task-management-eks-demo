@@ -1,10 +1,20 @@
+# Service Account for Notification Service (IRSA for SES)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: notification-service-sa
+  namespace: task-management
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::982424467695:role/TaskManagementSESRole
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: notification-service
   namespace: task-management
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: notification-service
@@ -13,6 +23,11 @@ spec:
       labels:
         app: notification-service
     spec:
+      serviceAccountName: notification-service-sa
+      initContainers:
+      - name: wait-for-redis
+        image: busybox:1.36
+        command: ['sh', '-c', 'until nc -z redis-service 6379; do echo "Waiting for Redis..."; sleep 2; done; echo "Redis is ready!"']
       containers:
       - name: notification-service
         image: 982424467695.dkr.ecr.ap-south-1.amazonaws.com/task-management/notification-service:latest
@@ -27,42 +42,26 @@ spec:
               name: app-config
               key: NODE_ENV
         - name: REDIS_HOST
-          valueFrom:
-            configMapKeyRef:
-              name: app-config
-              key: REDIS_HOST
+          value: "redis-service"
         - name: REDIS_PORT
-          valueFrom:
-            configMapKeyRef:
-              name: app-config
-              key: REDIS_PORT
+          value: "6379"
         - name: USER_SERVICE_URL
-          valueFrom:
-            configMapKeyRef:
-              name: app-config
-              key: USER_SERVICE_URL
-        - name: SMTP_HOST
-          valueFrom:
-            secretKeyRef:
-              name: app-secrets
-              key: SMTP_HOST
-        - name: SMTP_USER
-          valueFrom:
-            secretKeyRef:
-              name: app-secrets
-              key: SMTP_USER
-        - name: SMTP_PASS
-          valueFrom:
-            secretKeyRef:
-              name: app-secrets
-              key: SMTP_PASS
+          value: "http://user-service:3001"
+        - name: EMAIL_PROVIDER
+          value: "ses"
+        - name: SES_FROM_EMAIL
+          value: "avizway@gmail.com"
+        - name: TASK_OWNER_EMAIL
+          value: "avizway@gmail.com"
+        - name: AWS_REGION
+          value: "ap-south-1"
         resources:
           requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
             memory: "128Mi"
             cpu: "100m"
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
         livenessProbe:
           httpGet:
             path: /health

@@ -5,10 +5,5 @@ metadata:
   namespace: task-management
 data:
   NODE_ENV: "production"
-  USER_SERVICE_URL: "http://user-service:3001"
-  TASK_SERVICE_URL: "http://task-service:3002"
-  NOTIFICATION_SERVICE_URL: "http://notification-service:3003"
-  POSTGRES_DB: "taskmanager"
   MONGODB_DB: "taskmanager"
-  REDIS_HOST: "redis-service"
-  REDIS_PORT: "6379"
+  POSTGRES_DB: "taskmanager"

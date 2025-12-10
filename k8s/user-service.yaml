@@ -4,7 +4,7 @@ metadata:
   name: user-service
   namespace: task-management
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: user-service
@@ -13,6 +13,10 @@ spec:
       labels:
         app: user-service
     spec:
+      initContainers:
+      - name: wait-for-mongodb
+        image: busybox:1.36
+        command: ['sh', '-c', 'until nc -z mongodb-service 27017; do echo "Waiting for MongoDB..."; sleep 2; done; echo "MongoDB is ready!"']
       containers:
       - name: user-service
         image: 982424467695.dkr.ecr.ap-south-1.amazonaws.com/task-management/user-service:latest
@@ -38,11 +42,11 @@ spec:
               key: JWT_SECRET
         resources:
           requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
             memory: "128Mi"
             cpu: "100m"
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
         livenessProbe:
           httpGet:
             path: /health
